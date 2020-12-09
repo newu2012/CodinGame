@@ -9,7 +9,7 @@ using System.Collections.Generic;
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
  **/
-class Player
+internal class Player
 {
     public struct factoryDist {
         public int factory1;
@@ -35,19 +35,19 @@ class Player
         }
     }
 
-    static void Main(string[] args)
+    private static void Main(string[] args)
     {
         string[] inputs;
-        int factoryCount = int.Parse(Console.ReadLine()); // the number of factories
-        int linkCount = int.Parse(Console.ReadLine()); // the number of links between factories        
+        var factoryCount = int.Parse(Console.ReadLine()); // the number of factories
+        var linkCount = int.Parse(Console.ReadLine()); // the number of links between factories        
 
         var factoryDistances = new factoryDist[linkCount];
-        for (int i = 0; i < linkCount; i++)
+        for (var i = 0; i < linkCount; i++)
         {
             inputs = Console.ReadLine().Split(' ');
-            int factory1 = int.Parse(inputs[0]);
-            int factory2 = int.Parse(inputs[1]);
-            int distance = int.Parse(inputs[2]);
+            var factory1 = int.Parse(inputs[0]);
+            var factory2 = int.Parse(inputs[1]);
+            var distance = int.Parse(inputs[2]);
 
             factoryDistances[i] = new factoryDist(factory1, factory2, distance);
         }
@@ -64,22 +64,20 @@ class Player
 
             var factories = new factory[factoryCount];
 
-            int ourTopFactoryId = 0;
-            int ourTopFactoryUnits = 1;
-            int entityCount = int.Parse(Console.ReadLine()); // the number of entities (e.g. factories and troops)
-            for (int i = 0; i < entityCount; i++)
+            var ourTopFactoryId = 0;
+            var ourTopFactoryUnits = 1;
+            var entityCount = int.Parse(Console.ReadLine()); // the number of entities (e.g. factories and troops)
+            for (var i = 0; i < entityCount; i++)
             {
                 inputs = Console.ReadLine().Split(' ');
-                int entityId = int.Parse(inputs[0]);
-                string entityType = inputs[1];
-                int arg1 = int.Parse(inputs[2]);
-                int arg2 = int.Parse(inputs[3]);
-                int arg3 = int.Parse(inputs[4]);
-                int arg4 = int.Parse(inputs[5]);
-                int arg5 = int.Parse(inputs[6]);
-
-
-
+                var entityId = int.Parse(inputs[0]);
+                var entityType = inputs[1];
+                var arg1 = int.Parse(inputs[2]);
+                var arg2 = int.Parse(inputs[3]);
+                var arg3 = int.Parse(inputs[4]);
+                var arg4 = int.Parse(inputs[5]);
+                var arg5 = int.Parse(inputs[6]);
+                
                 if (entityType.Equals("FACTORY")) {
                     factories[i] = new factory(entityId, arg2, arg1); 
                     Console.Error.WriteLine("Id=" + entityId + " Units=" + arg2 + " Owner=" + arg1);
@@ -93,28 +91,37 @@ class Player
 
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
-            for (var i = 0; i < factoryCount; i++) {
-
+            var sendUnitsString = "";
+            for (var i = 0; i < factoryCount; i++)
                 if (factories[i].id != ourTopFactoryId && 
                     factories[i].owner != 1 &&
                     ourTopFactoryUnits - 3 > factories[i].units &&
                     waitList[i] == 0) {
-                        var unitsToSend = factories[i].units + 2;
-                        Console.Error.WriteLine(
-                            "From=" + ourTopFactoryId + " To=" + factories[i].id + " Units=" + unitsToSend
-                        );
-                        Console.WriteLine(
-                            "MOVE" + " " +
-                            ourTopFactoryId + " " +
-                            factories[i].id + " " +
-                            unitsToSend);
-                        waitList[i] += 10;
-                        break;
-                    }
+                    var unitsToSend = factories[i].units + 2;
+                    Console.Error.WriteLine(
+                        "From=" + ourTopFactoryId + " To=" + factories[i].id + " Units=" + unitsToSend
+                    );
+                    
+                    sendUnitsString +=
+                        "MOVE" + " " +
+                        ourTopFactoryId + " " +
+                        factories[i].id + " " +
+                        unitsToSend + ";";
+                    
+                    waitList[i] += 10;
+                    ourTopFactoryUnits -= unitsToSend;
+                }
+
+            if (sendUnitsString.Length > 5) {
+                sendUnitsString = sendUnitsString.Remove(sendUnitsString.Length - 1);
+                Console.WriteLine(sendUnitsString);
             }
-            
+            else {
+                Console.WriteLine("WAIT");
+            }
+
             // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
-            Console.WriteLine("WAIT");
+            // Console.WriteLine("WAIT");
         }
     }
 }
