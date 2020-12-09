@@ -35,7 +35,7 @@ internal class Player
         }
     }
 
-    private static void Main(string[] args)
+    private static void GhostInTheCell(string[] args)
     {
         string[] inputs;
         var factoryCount = int.Parse(Console.ReadLine()); // the number of factories
