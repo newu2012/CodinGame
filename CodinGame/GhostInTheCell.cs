@@ -88,9 +88,7 @@ internal class Player
                         }
                 }
             }
-
-            // Write an action using Console.WriteLine()
-            // To debug: Console.Error.WriteLine("Debug messages...");
+            
             var sendUnitsString = "";
             for (var i = 0; i < factoryCount; i++)
                 if (factories[i].id != ourTopFactoryId && 
@@ -116,12 +114,8 @@ internal class Player
                 sendUnitsString = sendUnitsString.Remove(sendUnitsString.Length - 1);
                 Console.WriteLine(sendUnitsString);
             }
-            else {
+            else 
                 Console.WriteLine("WAIT");
-            }
-
-            // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
-            // Console.WriteLine("WAIT");
         }
     }
 }
