@@ -29,7 +29,8 @@ class Code4LifePlayer
         Array.Sort<Sample>(samples, (x,y) => y.health.CompareTo(x.health));
 
         for (var i = 0; i < samples.Length; i++) {
-            if (samples[i].carriedBy == -1)
+            Console.Error.WriteLine(samples[i].sampleId);
+            if (samples[i].carriedBy != 1)
                 return samples[i];
         }
         return samples[0];
@@ -49,24 +50,26 @@ class Code4LifePlayer
     static void Code4Life(string[] args)
     {
         string[] inputs;
-        var projectCount = int.Parse(Console.ReadLine());
-        for (var i = 0; i < projectCount; i++)
+        int projectCount = int.Parse(Console.ReadLine());
+        for (int i = 0; i < projectCount; i++)
         {
             inputs = Console.ReadLine().Split(' ');
-            var a = int.Parse(inputs[0]);
-            var b = int.Parse(inputs[1]);
-            var c = int.Parse(inputs[2]);
-            var d = int.Parse(inputs[3]);
-            var e = int.Parse(inputs[4]);
+            int a = int.Parse(inputs[0]);
+            int b = int.Parse(inputs[1]);
+            int c = int.Parse(inputs[2]);
+            int d = int.Parse(inputs[3]);
+            int e = int.Parse(inputs[4]);
         }
 
         var typesOfWork = new string[]{
+            "SAMPLES",
+            "CollectSample",
             "DIAGNOSIS", 
-            "SelectingSample",
+            "AnalyzeSample",
             "MOLECULES", 
-            "CollectingMolecules",
+            "CollectMolecules",
             "LABORATORY", 
-            "ProducingMedicine"};
+            "ProduceMedicine"};
         var workToDo = typesOfWork[0];
 
         string[] moleculeTypes = {"A", "B", "C", "D", "E"};
@@ -78,92 +81,110 @@ class Code4LifePlayer
         // game loop
         while (true)
         {
-            for (var i = 0; i < 2; i++)
+            for (int i = 0; i < 2; i++)
             {
                 inputs = Console.ReadLine().Split(' ');
-                var target = inputs[0];
-                var eta = int.Parse(inputs[1]);
-                var score = int.Parse(inputs[2]);
-                var storageA = int.Parse(inputs[3]);
-                var storageB = int.Parse(inputs[4]);
-                var storageC = int.Parse(inputs[5]);
-                var storageD = int.Parse(inputs[6]);
-                var storageE = int.Parse(inputs[7]);
-                var expertiseA = int.Parse(inputs[8]);
-                var expertiseB = int.Parse(inputs[9]);
-                var expertiseC = int.Parse(inputs[10]);
-                var expertiseD = int.Parse(inputs[11]);
-                var expertiseE = int.Parse(inputs[12]);
+                string target = inputs[0];
+                int eta = int.Parse(inputs[1]);
+                int score = int.Parse(inputs[2]);
+                int storageA = int.Parse(inputs[3]);
+                int storageB = int.Parse(inputs[4]);
+                int storageC = int.Parse(inputs[5]);
+                int storageD = int.Parse(inputs[6]);
+                int storageE = int.Parse(inputs[7]);
+                int expertiseA = int.Parse(inputs[8]);
+                int expertiseB = int.Parse(inputs[9]);
+                int expertiseC = int.Parse(inputs[10]);
+                int expertiseD = int.Parse(inputs[11]);
+                int expertiseE = int.Parse(inputs[12]);
             }
+
 
             inputs = Console.ReadLine().Split(' ');
-            var availableA = int.Parse(inputs[0]);
-            var availableB = int.Parse(inputs[1]);
-            var availableC = int.Parse(inputs[2]);
-            var availableD = int.Parse(inputs[3]);
-            var availableE = int.Parse(inputs[4]);
-            var sampleCount = int.Parse(Console.ReadLine());
+            int availableA = int.Parse(inputs[0]);
+            int availableB = int.Parse(inputs[1]);
+            int availableC = int.Parse(inputs[2]);
+            int availableD = int.Parse(inputs[3]);
+            int availableE = int.Parse(inputs[4]);
+            int sampleCount = int.Parse(Console.ReadLine());
 
             var availableSamples = new Sample[sampleCount];
-
-            for (var i = 0; i < sampleCount; i++)
-            {
-                inputs = Console.ReadLine().Split(' ');
-                var sampleId = int.Parse(inputs[0]);
-                var carriedBy = int.Parse(inputs[1]);
-                var rank = int.Parse(inputs[2]);
-                var expertiseGain = inputs[3];
-                var health = int.Parse(inputs[4]);
-                var costA = int.Parse(inputs[5]);
-                var costB = int.Parse(inputs[6]);
-                var costC = int.Parse(inputs[7]);
-                var costD = int.Parse(inputs[8]);
-                var costE = int.Parse(inputs[9]);
-                availableSamples[i] = (new Sample(
-                    sampleId, 
-                    carriedBy, 
-                    rank, 
-                    int.Parse(expertiseGain), 
-                    health, 
-                    new[]{costA, costB, costC, costD, costE}));
+            if (sampleCount == 0 && workToDo.Equals("SAMPLES")) {
+                Console.WriteLine("GOTO " + workToDo);
+                workToDo = "CollectSample";
+                continue;
             }
-            if (selectedSample == null)
-                selectedSample = availableSamples[0];
+            if (sampleCount > 0) {
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    inputs = Console.ReadLine().Split(' ');
+                    int sampleId = int.Parse(inputs[0]);
+                    int carriedBy = int.Parse(inputs[1]);
+                    int rank = int.Parse(inputs[2]);
+                    string expertiseGain = inputs[3];
+                    int health = int.Parse(inputs[4]);
+                    int costA = int.Parse(inputs[5]);
+                    int costB = int.Parse(inputs[6]);
+                    int costC = int.Parse(inputs[7]);
+                    int costD = int.Parse(inputs[8]);
+                    int costE = int.Parse(inputs[9]);
+
+                    availableSamples[i] = (new Sample(
+                        sampleId, 
+                        carriedBy, 
+                        rank, 
+                        Int32.Parse(expertiseGain), 
+                        health, 
+                        new int[]{costA, costB, costC, costD, costE}));
+                }
+                if (selectedSample == null)
+                    selectedSample = availableSamples[0];
+            }
 
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
 
             switch(workToDo) {
+                case "SAMPLES":
+                    Console.WriteLine("GOTO " + workToDo);
+                    workToDo = "CollectSample";
+                    break;
+                case "CollectSample":
+                    var temp_rank = 2; // TODO CollectSample Call
+                    Console.WriteLine("CONNECT " + temp_rank);
+                    workToDo = "DIAGNOSIS";
+                    break;
                 case "DIAGNOSIS":
                     Console.WriteLine("GOTO " + workToDo);
-                    workToDo = "SelectingSample";
+                    workToDo = "AnalyzeSample";
                     break;
-                case "SelectingSample":
+                case "AnalyzeSample":
                     selectedSample = SelectSample(availableSamples);
                     workToDo = "MOLECULES";
                     Console.WriteLine("CONNECT " + selectedSample.sampleId);
                     break;
                 case "MOLECULES":
+                    selectedSample = availableSamples.Select(x => x).First(x => x.sampleId == selectedSample.sampleId);
                     Console.WriteLine("GOTO " + workToDo);
-                    workToDo = "CollectingMolecules";
+                    workToDo = "CollectMolecules";
                     break;
-                case "CollectingMolecules": 
+                case "CollectMolecules": 
                     selectedMoleculeIndex = CollectMolecules(selectedSample, playerStorage);
                     if (selectedMoleculeIndex != -1) {
                         Console.WriteLine("CONNECT " + moleculeTypes[selectedMoleculeIndex]);
                         playerStorage[selectedMoleculeIndex]++;
                         break;
                     }
-                    workToDo = "ProducingMedicine";
-                    Console.WriteLine("GOTO " + "LABORATORY");
+                    workToDo = "LABORATORY";
+                    Console.WriteLine("GOTO " + workToDo);
                     break;
                 case "LABORATORY":
                     Console.WriteLine("GOTO " + workToDo);
-                    workToDo = "ProducingMedicine";
+                    workToDo = "ProduceMedicine";
                     break;
-                case "ProducingMedicine":
+                case "ProduceMedicine":
                     Console.WriteLine("CONNECT " + selectedSample.sampleId);
-                    workToDo = "DIAGNOSIS";
+                    workToDo = "SAMPLES";
                     playerStorage = new int[5];
                     break;
             }
