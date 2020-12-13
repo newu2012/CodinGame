@@ -66,6 +66,7 @@ class LegendsOfCodeAndMagicPlayer
         BotPlayer ourBot = new BotPlayer();
         BotPlayer enemyBot = new BotPlayer();
         Card[] knownCards = new Card[60];
+        Card[] ourCardsLastTurn = null;
 
         // game loop
         while (true)
@@ -88,10 +89,23 @@ class LegendsOfCodeAndMagicPlayer
             inputs = Console.ReadLine().Split(' ');
             int opponentHand = int.Parse(inputs[0]);
             int opponentActions = int.Parse(inputs[1]);
+            List<int> cardsDamagedId = new List<int>();
+            List<int> cardsDamagedById = new List<int>();
+
             for (int i = 0; i < opponentActions; i++)
             {
                 string cardNumberAndAction = Console.ReadLine();
-            }
+                string[] idk = cardNumberAndAction.Split(' ');
+
+                Console.Error.WriteLine(cardNumberAndAction);
+                if (idk[1].Equals("ATTACK") && !idk[3].Equals("-1")) {
+                    cardsDamagedId.Add(int.Parse(idk[2]));
+                    cardsDamagedById.Add(int.Parse(idk[3]));
+                }
+
+            } // TOTO Кароче, тут враг бьёт по нам, а мы не считаем полученный им урон, а надо бы считать
+            Console.Error.WriteLine("--------EnemyActionsEnd---------");
+
 
             int cardCount = int.Parse(Console.ReadLine());
             for (int i = 0; i < cardCount; i++)
@@ -116,6 +130,7 @@ class LegendsOfCodeAndMagicPlayer
             var realCards = knownCards.Where(x => x != null); 
 
             Console.Error.WriteLine("Mana=" + ourBot.playerMana);
+            Console.Error.WriteLine("OurHP=" + ourBot.playerHealth);
 
             if (ourBot.playerMana == 0) {  // if Draft phase
                 var bestId = 0;
@@ -135,9 +150,33 @@ class LegendsOfCodeAndMagicPlayer
                     }
                 actionsOutput = "PICK " + bestId;
             }
-            else {
+            else { // If Battle phase
                 var currentMana = ourBot.playerMana;
-                
+
+                var enemyCardsDamaged = new Dictionary<int, int>();
+
+                var cardsDamageById = new List<int>();
+                if (ourCardsLastTurn != null && ourCardsLastTurn.Length != 0) {
+                    Console.Error.WriteLine("OurCardsLastTurn=" + ourCardsLastTurn.Length);
+                    foreach (var card in ourCardsLastTurn) {
+                        Console.Error.WriteLine("ID=" + card.instanceId + " HP=" + card.defense + " ATK=" + card.attack);
+                    }
+                    
+                    Console.Error.WriteLine("EnemyCardsDamagedLastTurn=" + cardsDamagedId.Count());
+                    foreach(var card in ourCardsLastTurn)
+                        Console.Error.WriteLine("OurId=" + card.instanceId);
+                    foreach(var card in cardsDamagedById) {
+                        Console.Error.WriteLine("DamageFrom=" + card);
+                        cardsDamageById.Add(ourCardsLastTurn
+                        .Where(x => x.instanceId == card)
+                        .First().attack);
+                    }
+                    for (var i = 0; i < cardsDamagedId.Count(); i++) 
+                        enemyCardsDamaged.Add(cardsDamagedId[i], cardsDamageById[i]);
+
+                    realCards = RecalculateEnemiesDefense(realCards, enemyCardsDamaged);
+                }
+
                 var ourCards = realCards.Where(x => x.location == 1);
                 var enemyCards = realCards.Where(x => x.location == -1 && x.defense > 0);
                 var handCards = realCards.Where(x => x.location == 0);
@@ -145,24 +184,43 @@ class LegendsOfCodeAndMagicPlayer
                 handCards = handCards.OrderByDescending(card => card.abilities.Contains('G'));
 
                 foreach(var card in enemyCards) {
-                    Console.Error.WriteLine("EnemyID=" + card.instanceId);
+                    Console.Error.WriteLine("EnemyID=" + card.instanceId + " EnemyHP=" + card.defense + " Loc=" + card.location);
                 }
 
+                Console.Error.WriteLine("There was " + ourCards.Count() + " cards");
                 foreach(var card in handCards) {
                     if (card.cardType == 0 && card.cost <= currentMana) {
                         actionsOutput += "SUMMON " + card.instanceId + ";";
                         currentMana -= card.cost;
-                        if (card.abilities.Contains('C'))
-                            ourCards = ourCards.Append(card);
                         if (card.opponentHealthChange != 0)
                             enemyBot.playerHealth += card.opponentHealthChange;
+                        ourCards = ourCards.Append(card);
+                        Console.Error.WriteLine("Now there is " + ourCards.Count() + " cards");
                     }
                 }
 
-                var guardEnemies = enemyCards.Where(card => card.abilities.Contains('G'));
-                var goFace = enemyBot.playerHealth < CalculateTotalAttack(ourCards) && !guardEnemies.Any();
+                // TODO Use Items
 
-                actionsOutput += AttackEnemyBot(goFace, ourCards, enemyCards);
+                var guardEnemies = enemyCards.Where(card => card.abilities.Contains('G'));
+                var guardAllies = ourCards.Where(card => card.abilities.Contains('G'));
+
+                int playStyle = 0;
+                if (enemyBot.playerHealth <= CalculateTotalAttack(ourCards) && !guardEnemies.Any()) {
+                    playStyle = 1; // Full Attack
+                    Console.Error.WriteLine("GOING FULL ATTACK MODE");
+                }
+                else if (ourBot.playerHealth <= CalculateTotalAttack(enemyCards) && !guardAllies.Any()) {
+                    playStyle = -1; // Full Defense
+                    Console.Error.WriteLine("GOING FULL DEFENSE MODE");
+                }
+                else {
+                    playStyle = 0; // Normal Play
+                    Console.Error.WriteLine("GOING NORMAL MODE");
+                }
+
+                actionsOutput += AttackEnemyBot(playStyle, ourCards, enemyCards);
+                Console.Error.WriteLine(ourCards.Count() + " count after turn");
+                ourCardsLastTurn = ourCards.ToArray();
             }
 
             if (actionsOutput.Length == 0)
@@ -170,16 +228,22 @@ class LegendsOfCodeAndMagicPlayer
 
             Console.Error.WriteLine(actionsOutput);
             Console.WriteLine(actionsOutput);
-            // Write an action using Console.WriteLine()
-            // To debug: Console.Error.WriteLine("Debug messages...");
-
         }
     }
 
-    static string AttackEnemyBot(bool goFace, IEnumerable<Card> ourCards, IEnumerable<Card> enemyCards) {
-        var actionsOutput = "";
-        foreach(var card in ourCards) {
-            var bestEnemyId = goFace ? -1 : FindBestEnemy(card, enemyCards);
+    static IEnumerable<Card> RecalculateEnemiesDefense(IEnumerable<Card> realCards, Dictionary<int, int> enemyCardsDamaged) {
+        foreach (var card in realCards) {
+            if (enemyCardsDamaged.ContainsKey(card.instanceId))
+                card.defense -= enemyCardsDamaged.GetValueOrDefault(card.instanceId);
+        }
+        // TODO Поиск по realCards, если instanceId есть в cardsDamagedID, то уменьшать defense
+        return realCards;
+    }
+
+    static string AttackEnemyBot(int goFace, IEnumerable<Card> ourCards, IEnumerable<Card> enemyCards) {
+        var actionsOutput = ""; 
+        foreach(var card in ourCards) { // TODO Full defense mode
+            var bestEnemyId = goFace == 1 ? -1 : FindBestEnemy(card, enemyCards); 
             actionsOutput += "ATTACK " + card.instanceId + " " + bestEnemyId + ";";
         }
         return actionsOutput;
@@ -195,17 +259,21 @@ class LegendsOfCodeAndMagicPlayer
         enemyCards = enemyCards.Where(card => card.defense > 0);
 
         //  enemyCards = enemyCards.OrderByDescending(card => card.defense); 
-        var bestEnemyId = -1;
+        var bestEnemyId = -1; // Attack Face
 
+        if (!enemyCards.Any())
+            return bestEnemyId;
         var guardEnemies = enemyCards.Where(card => card.abilities.Contains('G'));
 
-        Console.Error.Write("For" + attackingCard.instanceId + " EnemiesID=");
-        foreach(var card in enemyCards) 
-            Console.Error.Write(card.instanceId + ";");
-        Console.Error.Write(" For" + attackingCard.instanceId + " GuardsID=");
-        foreach(var card in guardEnemies) 
-            Console.Error.Write(card.instanceId + ";");
-        Console.Error.WriteLine();
+        if (!enemyCards.Any()) {
+            Console.Error.Write("For" + attackingCard.instanceId + " EnemiesID=");
+            foreach(var card in enemyCards) 
+                Console.Error.Write(card.instanceId + ";");
+            Console.Error.Write(" GuardsID=");
+            foreach(var card in guardEnemies) 
+                Console.Error.Write(card.instanceId + ";");
+            Console.Error.WriteLine(); 
+        }
 
         if (attackingCard.abilities.Contains('L')) {
             bestEnemyId = enemyCards
@@ -213,25 +281,32 @@ class LegendsOfCodeAndMagicPlayer
             .ThenByDescending(card => card.abilities.Contains('G'))
             .First()
             .instanceId;
-            enemyCards.Where(card => card.instanceId == bestEnemyId).First().defense -= attackingCard.attack;
+            enemyCards.First(card => card.instanceId == bestEnemyId).defense -= attackingCard.attack;
             return bestEnemyId;
         }
+        Console.Error.WriteLine("NoMoreLethal");
 
         if (attackingCard.attack == 0 && guardEnemies.Any()) {
             bestEnemyId = -1;
             return bestEnemyId;
         }
+        Console.Error.WriteLine("NoMore0ATK");
 
-        if (guardEnemies.Any() && attackingCard.attack > guardEnemies.Min(card => card.defense)) {
-            bestEnemyId = guardEnemies
-            .Where(card => card.defense - attackingCard.attack <= 0)
-            .OrderByDescending(card => card.defense)
-            .First()
-            .instanceId;
-            enemyCards.Where(card => card.instanceId == bestEnemyId).First().defense -= attackingCard.attack;
-            return bestEnemyId;
+        if (guardEnemies.Any()) {
+            if (attackingCard.attack > guardEnemies.Min(card => card.defense)) {
+                bestEnemyId = guardEnemies
+                .Where(card => card.defense - attackingCard.attack <= 0)
+                .OrderByDescending(card => card.defense)
+                .First()
+                .instanceId;
+            }
+            else {
+                bestEnemyId = guardEnemies.First().instanceId;
+            }
+            enemyCards.First(card => card.instanceId == bestEnemyId).defense -= attackingCard.attack;
+            return bestEnemyId; 
         }
-        
+        Console.Error.WriteLine("SmthGuards");
 
         foreach(var card in enemyCards) {
             if (attackingCard.abilities.Contains('G') && attackingCard.defense <= card.attack)
