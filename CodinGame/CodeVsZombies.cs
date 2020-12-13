@@ -86,7 +86,7 @@ class CodeVsZombiesPlayer
             }
 
             if (humans.Length < 5 && zombies.Length > 1) {
-                Array.Sort<Human>(humans, (x, y) => x.distance.CompareTo(y.distance));
+                Array.Sort<Human>(humans, (hum1, hum2) => hum1.distance.CompareTo(hum2.distance));
                 foreach(var human in humans)
                     Console.Error.WriteLine(human.distance);
                 Console.WriteLine(humans[0].humanX + " " + humans[0].humanY);

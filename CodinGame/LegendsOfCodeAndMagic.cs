@@ -35,6 +35,7 @@ public class Card {
     public int    opponentHealthChange;
     public int    cardDraw;
 
+    public double cardValue;
     public Card(
         int cardNumber, int instanceId, int location, int cardType, int cost, int attack, int defense, string abilities,
         int myHealthChange, int opponentHealthChange, int cardDraw
@@ -50,6 +51,35 @@ public class Card {
         this.myHealthChange = myHealthChange;
         this.opponentHealthChange = opponentHealthChange;
         this.cardDraw = cardDraw;
+
+        this.cardValue = CalculateCardValue(cost, attack, defense, abilities, myHealthChange, opponentHealthChange, cardDraw);
+    }
+
+    private static double CalculateCardValue(double cost, double attack, double defense, string abilities, double myHealthChange,
+    double opponentHealthChange, double cardDraw) {
+        var value = 0.0;
+        var breakthrough = abilities.Contains('B') ? 1 : 0;
+        var charge = abilities.Contains('C') ? 1 : 0;
+        var drain = abilities.Contains('D') ? 1 : 0;
+        var guard = abilities.Contains('G') ? 1 : 0;
+        var lethal = abilities.Contains('L') ? 1 : 0;
+        var ward = abilities.Contains('W') ? 1 : 0;
+
+        value = (
+            (0.57 * attack) +
+            (0.4 * defense) +
+            (0.34 * myHealthChange) -
+            (0.82 * opponentHealthChange) +
+            (1.84 * cardDraw) +
+            Math.Min(0.61 * breakthrough * attack, 1.5) +
+            Math.Min(0.33 * charge * attack, 1) +
+            Math.Min(0.34 * drain * attack, 1) + 
+            Math.Min(0.51 * guard * defense, 1) +
+            Math.Min(2.00 * lethal * defense, 1.5) +
+            Math.Min(1.40 * ward * attack, 1.5)
+        ) / (cost + 1);
+
+        return value;
     }
 }
 
@@ -60,21 +90,23 @@ internal class LegendsOfCodeAndMagicPlayer {
         var knownCards = new List<Card>();
 
         while (true) {
-            knownCards = InputParsing(ref ourBot, ref enemyBot, out var cardCount);
+            knownCards = InputParsing(ref ourBot, ref enemyBot);
 
             DebugPlayerStats(ourBot);
 
             var actionsOutput = ourBot.playerMana == 0
-                ? DraftPhase(cardCount, knownCards)
+                ? DraftPhase(knownCards)
                 : BattlePhase(knownCards, ourBot, enemyBot);
 
             if (actionsOutput.Length == 0)
-                actionsOutput += "PASS";
+                actionsOutput = "PASS";
 
             Console.Error.WriteLine(actionsOutput);
             Console.WriteLine(actionsOutput);
         }
     }
+
+    
 
     private static void DebugPlayerStats(BotPlayer ourBot) {
         Console.Error.WriteLine("\nOur Stats:");
@@ -90,7 +122,7 @@ internal class LegendsOfCodeAndMagicPlayer {
         DebugCardsOnTable(ourCards, enemyCards);
 
         var actionsOutput = "";
-        ourCards = BattleSummonCards(ourBot, enemyBot, ourCards, handCards, ref actionsOutput);
+        ourCards = BattleSummonCreatures(ourBot, enemyBot, ourCards, handCards, ref actionsOutput);
 
         // TODO Use Items
 
@@ -101,15 +133,20 @@ internal class LegendsOfCodeAndMagicPlayer {
     }
 
     private static int SelectPlayStyle(BotPlayer ourBot, BotPlayer enemyBot, IEnumerable<Card> enemyCards, IEnumerable<Card> ourCards) {
-        var guardEnemies = enemyCards.Where(card => card.abilities.Contains('G'));
-        var guardAllies = ourCards.Where(card => card.abilities.Contains('G'));
+        var enemyGuards = enemyCards.Where(card => card.abilities.Contains('G'));
+        var ourGuards = ourCards.Where(card => card.abilities.Contains('G'));
 
         int playStyle;
-        if (enemyBot.playerHealth <= CalculateTotalAttack(ourCards) && !guardEnemies.Any()) {
+        var ourTotalAttack = CalculateTotalAttack(ourCards);
+        var ourHPWithGuards = ourBot.playerHealth + ourGuards.Sum(card => card.defense);
+        var enemyTotalAttack = CalculateTotalAttack(enemyCards);
+        var enemyHPWithGuards = enemyBot.playerHealth + enemyGuards.Sum(card => card.defense);
+
+        if (CheckForFullAttack(ourBot, enemyBot, enemyCards, ourCards, enemyGuards, ourGuards, ourTotalAttack, ourHPWithGuards, enemyTotalAttack, enemyHPWithGuards)) {
             playStyle = 1; // Full Attack
             Console.Error.WriteLine("GOING FULL ATTACK MODE");
         }
-        else if (ourBot.playerHealth <= CalculateTotalAttack(enemyCards) && !guardAllies.Any()) {
+        else if (ourBot.playerHealth <= enemyTotalAttack && !ourGuards.Any()) {
             playStyle = -1; // Full Defense
             Console.Error.WriteLine("GOING FULL DEFENSE MODE");
         }
@@ -121,15 +158,34 @@ internal class LegendsOfCodeAndMagicPlayer {
         return playStyle;
     }
 
-    private static IEnumerable<Card> BattleSummonCards(BotPlayer ourBot, BotPlayer enemyBot, IEnumerable<Card> ourCards,
+    private static bool CheckForFullAttack(BotPlayer ourBot, BotPlayer enemyBot, IEnumerable<Card> enemyCards, 
+    IEnumerable<Card> ourCards, IEnumerable<Card> enemyGuards,  IEnumerable<Card> ourGuards, int ourTotalAttack, 
+    int ourHPWithGuards, int enemyTotalAttack, int enemyHPWithGuards) {
+        var goFullAttack = false;
+        if (!enemyCards.Any())
+            goFullAttack = true;
+        else if (!enemyGuards.Any() && enemyBot.playerHealth <= ourTotalAttack)
+            goFullAttack = true;
+        else if (enemyHPWithGuards <= ourTotalAttack)
+            goFullAttack = false;
+
+        return goFullAttack;
+    }
+
+    private static IEnumerable<Card> BattleSummonCreatures(BotPlayer ourBot, BotPlayer enemyBot, IEnumerable<Card> ourCards,
         IEnumerable<Card> handCards, ref string actionsOutput) {
         Console.Error.WriteLine("\nThere was " + ourCards.Count() + " cards");
+
+        handCards = handCards.OrderByDescending(card => card.cardValue);
+
         foreach (var card in handCards)
             if (card.cardType == 0 && card.cost <= ourBot.playerMana) {
                 actionsOutput += "SUMMON " + card.instanceId + ";";
                 ourBot.playerMana -= card.cost;
+
                 if (card.opponentHealthChange != 0)
                     enemyBot.playerHealth += card.opponentHealthChange;
+
                 ourCards = ourCards.Append(card);
                 Console.Error.WriteLine("Now there is " + ourCards.Count() + " cards");
             }
@@ -147,29 +203,16 @@ internal class LegendsOfCodeAndMagicPlayer {
             Console.Error.WriteLine("Id=" + card.instanceId + " ATK=" + card.attack + " DEF=" + card.defense);
     }
 
-    private static string DraftPhase(int cardCount, List<Card> knownCards) {
-        var bestId = 0;
+    private static string DraftPhase(List<Card> knownCards) {
 
-        for (var i = 0; i < cardCount; i++)
-            if (knownCards[i].cardType == 0) {
-                if (knownCards[i].abilities.Contains('G') || knownCards[i].abilities.Contains('B')) {
-                    if (knownCards[i].abilities.Length > 1) {
-                        bestId = i;
-                        break;
-                    }
-
-                    bestId = i;
-                    break;
-                }
-
-                bestId = i;
-            }
-
-        var actionsOutput = "PICK " + bestId;
-        return actionsOutput;
+        var bestCard = knownCards.OrderBy(card => card.cardType).ThenByDescending(card => card.cardValue).First();
+        foreach (var card in knownCards)
+            Console.Error.WriteLine("CardValue=" + card.cardValue);
+        Console.Error.WriteLine();
+        return "PICK " + knownCards.IndexOf(bestCard);
     }
 
-    private static List<Card> InputParsing(ref BotPlayer ourBot, ref BotPlayer enemyBot, out int cardCount) {
+    private static List<Card> InputParsing(ref BotPlayer ourBot, ref BotPlayer enemyBot) {
         string[] inputs;
         for (var i = 0; i < 2; i++) {
             inputs = Console.ReadLine().Split(' ');
@@ -200,7 +243,7 @@ internal class LegendsOfCodeAndMagicPlayer {
         }
 
         var knownCards = new List<Card>();
-        cardCount = int.Parse(Console.ReadLine());
+        var cardCount = int.Parse(Console.ReadLine());
         for (var i = 0; i < cardCount; i++) {
             inputs = Console.ReadLine().Split(' ');
             var cardNumber = int.Parse(inputs[0]);
@@ -258,8 +301,8 @@ internal class LegendsOfCodeAndMagicPlayer {
 
         if (attackingCard.abilities.Contains('L')) {
             bestEnemyId = enemyCards
-                .OrderByDescending(card => card.defense)
-                .ThenByDescending(card => card.abilities.Contains('G'))
+                .OrderByDescending(card => card.abilities.Contains('G'))
+                .ThenByDescending(card => card.defense)
                 .First()
                 .instanceId;
             enemyCards.First(card => card.instanceId == bestEnemyId).defense -= attackingCard.attack;
