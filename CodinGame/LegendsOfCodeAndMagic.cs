@@ -36,6 +36,8 @@ public class Card {
     public int    cardDraw;
 
     public double cardValue;
+    public double cardVPC;
+
     public Card(
         int cardNumber, int instanceId, int location, int cardType, int cost, int attack, int defense, string abilities,
         int myHealthChange, int opponentHealthChange, int cardDraw
@@ -52,10 +54,28 @@ public class Card {
         this.opponentHealthChange = opponentHealthChange;
         this.cardDraw = cardDraw;
 
-        this.cardValue = CalculateCardValue(cost, attack, defense, abilities, myHealthChange, opponentHealthChange, cardDraw);
+        this.cardValue = CalculateCardValue(cardType, cost, attack, defense, abilities, myHealthChange, opponentHealthChange, cardDraw);
+        this.cardVPC = Math.Round(cardValue / (cost + 1), 2);
     }
 
-    private static double CalculateCardValue(double cost, double attack, double defense, string abilities, double myHealthChange,
+    public Card(Card anotherCard) {
+        this.cardNumber = anotherCard.cardNumber;
+        this.instanceId = anotherCard.instanceId;
+        this.location = anotherCard.location;
+        this.cardType = anotherCard.cardType;
+        this.cost = anotherCard.cost;
+        this.attack = anotherCard.attack;
+        this.defense = anotherCard.defense;
+        this.abilities = anotherCard.abilities;
+        this.myHealthChange = anotherCard.myHealthChange;
+        this.opponentHealthChange = anotherCard.opponentHealthChange;
+        this.cardDraw = anotherCard.cardDraw;
+
+        this.cardValue = CalculateCardValue(cardType, cost, attack, defense, abilities, myHealthChange, opponentHealthChange, cardDraw);
+        this.cardVPC = Math.Round(cardValue / (cost + 1), 2);
+    }
+
+    private static double CalculateCardValue(int cardType, double cost, double attack, double defense, string abilities, double myHealthChange,
     double opponentHealthChange, double cardDraw) {
         var value = 0.0;
         var breakthrough = abilities.Contains('B') ? 1 : 0;
@@ -65,21 +85,25 @@ public class Card {
         var lethal = abilities.Contains('L') ? 1 : 0;
         var ward = abilities.Contains('W') ? 1 : 0;
 
-        value = (
+        if (cardType == 2 || cardType == 3) {
+            attack = -attack;
+            defense = -defense;
+        }
+
+        value = 
             (0.57 * attack) +
             (0.4 * defense) +
-            (0.34 * myHealthChange) -
-            (0.82 * opponentHealthChange) +
+            (0.6 * myHealthChange) -
+            (0.4 * opponentHealthChange) +
             (1.84 * cardDraw) +
-            Math.Min(0.61 * breakthrough * attack, 1.5) +
-            Math.Min(0.33 * charge * attack, 1) +
-            Math.Min(0.34 * drain * attack, 1) + 
-            Math.Min(0.51 * guard * defense, 1) +
-            Math.Min(2.00 * lethal * defense, 1.5) +
-            Math.Min(1.40 * ward * attack, 1.5)
-        ) / (cost + 1);
+            Math.Max(0.61 * breakthrough * attack, 1.5 * breakthrough) +
+            Math.Max(0.33 * charge * attack, 1 * charge) +
+            Math.Max(0.34 * drain * attack, 1 * drain) + 
+            Math.Max(0.51 * guard * defense, 1 * guard) +
+            Math.Max(2.00 * lethal * defense, 1.5 * lethal) +
+            Math.Max(1.40 * ward * attack, 1.5 * ward);
 
-        return value;
+        return Math.Round (value, 2);
     }
 }
 
@@ -106,8 +130,6 @@ internal class LegendsOfCodeAndMagicPlayer {
         }
     }
 
-    
-
     private static void DebugPlayerStats(BotPlayer ourBot) {
         Console.Error.WriteLine("\nOur Stats:");
         Console.Error.WriteLine("Mana=" + ourBot.playerMana);
@@ -122,6 +144,9 @@ internal class LegendsOfCodeAndMagicPlayer {
         DebugCardsOnTable(ourCards, enemyCards);
 
         var actionsOutput = "";
+
+
+
         ourCards = BattleSummonCreatures(ourBot, enemyBot, ourCards, handCards, ref actionsOutput);
 
         // TODO Use Items
@@ -205,9 +230,9 @@ internal class LegendsOfCodeAndMagicPlayer {
 
     private static string DraftPhase(List<Card> knownCards) {
 
-        var bestCard = knownCards.OrderBy(card => card.cardType).ThenByDescending(card => card.cardValue).First();
+        var bestCard = knownCards.OrderBy(card => card.cardType).ThenByDescending(card => card.cardVPC).First();
         foreach (var card in knownCards)
-            Console.Error.WriteLine("CardValue=" + card.cardValue);
+            Console.Error.WriteLine("CardValue=" + card.cardValue + " CardVPC=" + card.cardVPC);
         Console.Error.WriteLine();
         return "PICK " + knownCards.IndexOf(bestCard);
     }
@@ -278,6 +303,44 @@ internal class LegendsOfCodeAndMagicPlayer {
     private static int CalculateTotalAttack(IEnumerable<Card> cards) {
         var totalAttack = cards.Sum(card => card.attack);
         return totalAttack;
+    }
+
+    private static double CalculateTableValueChange(Card attackingCard, Card defendingCard) {
+        var atkCard = new Card(attackingCard);
+        var defCard = new Card (defendingCard);
+        var valueChange = 0.0;
+
+        return valueChange;
+    }
+
+    private static IEnumerable<Card> TryAttack (Card attackingCard, Card defendingCard) {
+        if (attackingCard.cardType == 0) {
+            if (defendingCard.abilities.Contains('W')) {
+                
+            }   
+        }
+
+        var cards = new List<Card> {attackingCard, defendingCard};
+
+        return cards;
+    }
+
+    private static Card GetDamage (Card attackingCard, Card defendingCard) {
+        var atkCard = new Card(attackingCard);
+        var defCard = new Card (defendingCard);
+
+        if (defCard.abilities.Contains('W')) {
+            defCard.abilities = defCard.abilities.Substring(0, 5) + "-";
+        }
+        else {
+            if (atkCard.abilities.Contains('L')) {
+                defCard.defense = 0;
+            }
+
+            defCard.defense -= atkCard.attack;
+        }
+        
+        return defendingCard;
     }
 
     private static int FindBestEnemy(Card attackingCard, IEnumerable<Card> enemyCards) {
