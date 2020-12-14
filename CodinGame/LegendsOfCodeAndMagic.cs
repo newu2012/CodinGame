@@ -38,6 +38,8 @@ public class Card {
     public double cardValue;
     public double cardVPC;
 
+    public bool canAttack = true;
+
     public Card(
         int cardNumber, int instanceId, int location, int cardType, int cost, int attack, int defense, string abilities,
         int myHealthChange, int opponentHealthChange, int cardDraw
@@ -116,7 +118,7 @@ internal class LegendsOfCodeAndMagicPlayer {
         while (true) {
             knownCards = InputParsing(ref ourBot, ref enemyBot);
 
-            DebugPlayerStats(ourBot);
+
 
             var actionsOutput = ourBot.playerMana == 0
                 ? DraftPhase(knownCards)
@@ -141,11 +143,17 @@ internal class LegendsOfCodeAndMagicPlayer {
         var enemyCards = realCards.Where(x => x.location == -1);
         var handCards = realCards.Where(x => x.location == 0);
 
+        DebugBothTables(ourBot, enemyBot, ourCards, enemyCards);
+        DebugPlayerStats(ourBot);
         DebugCardsOnTable(ourCards, enemyCards);
 
         var actionsOutput = "";
 
-
+        while (ourCards.Count(card => card.canAttack) > 0) {
+            // MakeBestDecision();
+            
+            break;
+        }
 
         ourCards = BattleSummonCreatures(ourBot, enemyBot, ourCards, handCards, ref actionsOutput);
 
@@ -154,6 +162,8 @@ internal class LegendsOfCodeAndMagicPlayer {
         var playStyle = SelectPlayStyle(ourBot, enemyBot, enemyCards, ourCards);
 
         actionsOutput += AttackEnemyBot(playStyle, ourCards, enemyCards);
+
+        DebugBothTables(ourBot, enemyBot, ourCards, enemyCards);
         return actionsOutput;
     }
 
@@ -212,6 +222,8 @@ internal class LegendsOfCodeAndMagicPlayer {
                     enemyBot.playerHealth += card.opponentHealthChange;
 
                 ourCards = ourCards.Append(card);
+                ourCards.Where(ourCard => ourCard.instanceId == card.instanceId).First().canAttack = card.abilities.Contains('C');
+                
                 Console.Error.WriteLine("Now there is " + ourCards.Count() + " cards");
             }
 
@@ -294,6 +306,8 @@ internal class LegendsOfCodeAndMagicPlayer {
         var actionsOutput = "";
         foreach (var card in ourCards) { // TODO Full defense mode
             var bestEnemyId = goFace == 1 ? -1 : FindBestEnemy(card, enemyCards);
+            if (bestEnemyId == 0)
+                continue;
             actionsOutput += "ATTACK " + card.instanceId + " " + bestEnemyId + ";";
         }
 
@@ -305,6 +319,30 @@ internal class LegendsOfCodeAndMagicPlayer {
         return totalAttack;
     }
 
+    private static string MakeBestDecision() {
+        var decisions = new Dictionary<string, double>(); // Save key=actionsOutput value=tableValue;
+
+        // TrySummon
+        // TryUseItem
+        // TryAttack
+
+        var bestDecision = decisions.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;;
+        return bestDecision;
+    }
+
+    private static double CalculateTable (BotPlayer bot, IEnumerable<Card> cardsOnTable) {
+        double tableValue = bot.playerHealth;
+
+        foreach (var card in cardsOnTable) {
+            tableValue += card.cardValue;
+        }
+
+        if (bot.playerHealth <= 0)
+            tableValue = 0;
+
+        return tableValue;
+    }
+
     private static double CalculateTableValueChange(Card attackingCard, Card defendingCard) {
         var atkCard = new Card(attackingCard);
         var defCard = new Card (defendingCard);
@@ -314,37 +352,46 @@ internal class LegendsOfCodeAndMagicPlayer {
     }
 
     private static IEnumerable<Card> TryAttack (Card attackingCard, Card defendingCard) {
+        var atkCard = new Card(attackingCard);
+        var defCard = new Card (defendingCard);
+
+
         if (attackingCard.cardType == 0) {
-            if (defendingCard.abilities.Contains('W')) {
-                
-            }   
+            if (defCard.abilities.Contains('W')) {
+                defCard.abilities = defCard.abilities.Substring(0, 5) + "-";
+            }
+            else {
+                if (atkCard.abilities.Contains('L')) {
+                    defCard.defense = 0;
+                }
+
+                defCard.defense -= atkCard.attack;
+            }
         }
 
-        var cards = new List<Card> {attackingCard, defendingCard};
+        var cards = new List<Card>();
+        cards.Add(attackingCard);
+        cards.Add(defendingCard);
 
         return cards;
     }
 
-    private static Card GetDamage (Card attackingCard, Card defendingCard) {
-        var atkCard = new Card(attackingCard);
-        var defCard = new Card (defendingCard);
+    private static void DebugBothTables (BotPlayer ourBot, BotPlayer enemyBot, 
+    IEnumerable<Card> ourCards, IEnumerable<Card> enemyCards) {
+        var ourTableValue = CalculateTable(ourBot, ourCards);
+        var enemyTableValue = CalculateTable(enemyBot, enemyCards);
 
-        if (defCard.abilities.Contains('W')) {
-            defCard.abilities = defCard.abilities.Substring(0, 5) + "-";
-        }
-        else {
-            if (atkCard.abilities.Contains('L')) {
-                defCard.defense = 0;
-            }
-
-            defCard.defense -= atkCard.attack;
-        }
-        
-        return defendingCard;
+        Console.Error.WriteLine("\nOur Table Value = " + ourTableValue);
+        Console.Error.WriteLine("Enemy Table Value = " + enemyTableValue);
+        Console.Error.WriteLine("Controlling " + Math.Round((ourTableValue * 100) / (ourTableValue + enemyTableValue), 2) + "% of the table");
     }
 
     private static int FindBestEnemy(Card attackingCard, IEnumerable<Card> enemyCards) {
+        if (attackingCard.canAttack == false)
+            return 0;
+
         enemyCards = enemyCards.Where(card => card.defense > 0);
+
 
         var bestEnemyId = -1; // Attack Face
 
